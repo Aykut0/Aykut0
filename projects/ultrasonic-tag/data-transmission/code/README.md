@@ -16,7 +16,11 @@ A recommended way is to follow the instructions on a [docs page](https://docs.es
 
 ## Example folder contents
 
-The project **sample_project** contains one source file in C language [main.c](main/main.c). The file is located in folder [main](main).
+This folder includes two ESP32 applications and a small Python helper:
+
+- `main/main.c` - the original HTTP/JSON implementation.
+- `main/udp_main.c` - an alternative that sends raw binary data via UDP.
+- `udp_receiver.py` - desktop script that receives the UDP packets and plots the ADC values in real time.
 
 ESP-IDF projects are built using CMake. The project build configuration is contained in `CMakeLists.txt`
 files that provide set of directives and instructions describing the project's source files and targets
