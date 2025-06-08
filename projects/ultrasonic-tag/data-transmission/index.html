@@ -1,0 +1,61 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Data Transmission - Ultrasonic Tag Project</title>
+    <link rel="stylesheet" href="../../style.css">
+</head>
+<body>
+    <header>
+        <h1>ESP32 Data Transmission</h1>
+        <p>Real-Time Wireless Communication with Firebase Integration</p>
+    </header>
+
+    <nav>
+        <a href="../../index.html">Home</a>
+        <a href="../ultrasonic-tag/">Back to Project</a>
+    </nav>
+
+    <main>
+        <section>
+            <h2>Overview</h2>
+            <p>
+                This module is responsible for receiving SPI data from the STM32 microcontroller and transmitting the processed data 
+                to a Firebase Realtime Database over WiFi using the ESP32. It operates in SPI slave mode and ensures real-time data 
+                handling, optimized for low latency and high reliability.
+            </p>
+        </section>
+
+        <section>
+            <h2>Key Features</h2>
+            <ul>
+                <li>WiFi connection with retry logic using FreeRTOS events</li>
+                <li>SPI slave configuration to receive 700-sample ADC data packets</li>
+                <li>Firebase HTTPS communication using POST and PUT methods</li>
+                <li>Efficient use of FreeRTOS tasks and semaphores</li>
+                <li>Timestamped data uploads and live data update via a 'latest' node</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Code & Repository</h2>
+            <p>Explore the source code and implementation details in the GitHub repository:</p>
+            <a class="project-links" href="https://github.com/Aykut0/ultrasonic-tag-code" target="_blank">GitHub: ultrasonic-tag-code</a>
+        </section>
+
+        <section>
+            <h2>Technical Stack</h2>
+            <div class="tech-stack">
+                <span>ESP32</span>
+                <span>Firebase Realtime DB</span>
+                <span>WiFi</span>
+                <span>SPI</span>
+                <span>FreeRTOS</span>
+                <span>C</span>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
