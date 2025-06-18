@@ -34,8 +34,8 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define ADC_BUF_SIZE 700
-#define SPI_CS_PIN GPIO_PIN_4  // SPI CS pin (PA4)
-#define SPI_CS_PORT GPIOA      // SPI CS port
+#define SPI_CS_PIN GPIO_PIN_6  // SPI CS pin (PA4)
+#define SPI_CS_PORT GPIOB      // SPI CS port
 
 //#define ADC_BUF_SIZE1 20000
 
@@ -71,7 +71,7 @@ const uint32_t CPU_FREQ_MHZ = 80;
 // Data buffer for SPI transmission
 uint16_t spiTxBuf[ADC_BUF_SIZE * 2]; // Two values (ADC1 & ADC2) per sample
 volatile uint8_t spiTxComplete = 1;  // Flag to indicate SPI TX completion
-
+static uint8_t spiByteBuffer[ADC_BUF_SIZE * 4];
 //static uint32_t adcFlag = RESET;
 /* USER CODE END PV */
 
@@ -125,8 +125,10 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 	spiEndCycle = DWT->CYCCNT;
     spiTxComplete = 1;
     uint32_t cycles = spiEndCycle - spiStartCycle;
-
+    // Release CS immediately after transmission complete
+    HAL_GPIO_WritePin(SPI_CS_PORT, SPI_CS_PIN, GPIO_PIN_SET);
 	printf("SPI TX complete in %lu cycles)\r\n",cycles);
+
 
   }
 }
@@ -137,9 +139,9 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 void sendDataViaSPI(void)
 {
   // Create a byte buffer for SPI transmission
-  static uint8_t byteBuffer[ADC_BUF_SIZE * 4]; // Make it static to avoid stack issues
 
-  printf("Preparing SPI data...\r\n");
+  printf("Starting SPI transmission of %d bytes\r\n", ADC_BUF_SIZE * 4);
+
 
   // Sample debug for input data - show raw ADC values first
   printf("Raw ADC[0]: 0x%08lX\r\n", adcBuf[0]);
@@ -157,10 +159,10 @@ void sendDataViaSPI(void)
     adc2_v = ((((int16_t)(adcBuf[i] >> 16))) * 3300 / 255);
 
     // Store 16-bit values as bytes (little-endian for consistency)
-    byteBuffer[i*4]   = (uint8_t)(adc1_v & 0xFF);         // ADC1 low byte
-    byteBuffer[i*4+1] = (uint8_t)((adc1_v >> 8) & 0xFF);  // ADC1 high byte
-    byteBuffer[i*4+2] = (uint8_t)(adc2_v & 0xFF);         // ADC2 low byte
-    byteBuffer[i*4+3] = (uint8_t)((adc2_v >> 8) & 0xFF);  // ADC2 high byte
+    spiByteBuffer[i*4]   = (uint8_t)(adc1_v & 0xFF);         // ADC1 low byte
+    spiByteBuffer[i*4+1] = (uint8_t)((adc1_v >> 8) & 0xFF);  // ADC1 high byte
+    spiByteBuffer[i*4+2] = (uint8_t)(adc2_v & 0xFF);         // ADC2 low byte
+    spiByteBuffer[i*4+3] = (uint8_t)((adc2_v >> 8) & 0xFF);  // ADC2 high byte
 
     // Also keep values in the spiTxBuf for debug printing
     spiTxBuf[i*2] = (uint16_t)adc1_v;
@@ -171,17 +173,25 @@ void sendDataViaSPI(void)
   spiStartCycle = DWT->CYCCNT; // Start timing with cycle precision
   printf("SPI transmission starting\r\n");
   spiTxComplete = 0;
-  if (HAL_SPI_Transmit_DMA(&hspi1, byteBuffer, ADC_BUF_SIZE * 4) != HAL_OK)
+
+  HAL_GPIO_WritePin(SPI_CS_PORT, SPI_CS_PIN, GPIO_PIN_RESET);   // Actiavte the CS pin
+  __NOP(); __NOP(); __NOP(); __NOP();
+
+  if (HAL_SPI_Transmit_DMA(&hspi1, spiByteBuffer, ADC_BUF_SIZE * 4) != HAL_OK)
   {
     printf("SPI TX DMA Error\r\n");
     spiTxComplete = 1; // Reset flag to prevent hanging
-    HAL_GPIO_WritePin(SPI_CS_PORT, SPI_CS_PIN, GPIO_PIN_SET); // Deactivate CS on error
+    HAL_GPIO_WritePin(SPI_CS_PORT, SPI_CS_PIN, GPIO_PIN_SET);
+    return;// Deactivate CS on error
   }
   else
   {
+
     printf("SPI TX started, %d bytes\r\n", ADC_BUF_SIZE * 4);
+
     // CS will be deactivated after callback
   }
+
 }
 /* USER CODE END 0 */
 
@@ -259,14 +269,6 @@ int main(void)
       sendDataViaSPI();
 
       // Wait for SPI transmission to complete with timeout
-      uint32_t timeout = 0;
-      while(!spiTxComplete && timeout < 1000) {
-        HAL_Delay(1);
-        timeout++;
-      }
-
-      // Deactivate CS pin
-      HAL_GPIO_WritePin(SPI_CS_PORT, SPI_CS_PIN, GPIO_PIN_SET);
 
       // Small delay before restarting ADC
       HAL_Delay(1);
@@ -504,13 +506,13 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi1.Init.CRCPolynomial = 7;
   hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
   if (HAL_SPI_Init(&hspi1) != HAL_OK)
   {
     Error_Handler();
@@ -639,7 +641,7 @@ static void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 80-1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 20000-1;
+  htim3.Init.Period = 40000-1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -730,16 +732,17 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_6, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : PA4 */
-  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  /*Configure GPIO pin : PB6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
   /* USER CODE END MX_GPIO_Init_2 */
